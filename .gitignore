@@ -16,3 +16,8 @@ venv/
 # Local OS files
 .DS_Store
 Thumbs.db
+
+# Local datasets kept outside the four submitted homework folders
+T10I4D100K.dat
+twenty_newsgroups/
+twenty_newsgroups.zip

@@ -2,7 +2,7 @@
 
 最常用的运行方式：
 
-    python main.py --sizes 10 100 1000 --lsh
+    python main.py --sizes 10 100 1000
 
 默认读取项目上一级的 twenty_newsgroups/mini/mini_newsgroups。
 全部参数和默认值可以用 python main.py --help 查看。
@@ -297,6 +297,11 @@ def main() -> None:
             args.lsh_rows,
         )
         summary["requested_documents"] = requested_size
+        if not args.lsh:
+            # 没有运行 LSH 时不输出 LSH 的列，避免 CSV 里出现一排空单元格。
+            summary = {
+                key: value for key, value in summary.items() if not key.startswith("lsh_")
+            }
         summaries.append(summary)
 
         for row in pair_records[:10]:

@@ -8,8 +8,7 @@
 2. 直接 Jaccard similarity
 3. MinHashing
 4. MinHash signature similarity
-5. 可选的 LSH：banding 找候选对，再按阈值筛选
-6. 10、100、1,000 篇文档的规模实验
+5. 10、100、1,000 篇文档的规模实验
 
 ## 目录结构
 
@@ -82,7 +81,7 @@ python -m pip install notebook matplotlib
 运行完整规模实验：
 
 ~~~~sh
-python main.py --sizes 10 100 1000 --lsh
+python main.py --sizes 10 100 1000
 ~~~~
 
 也可以直接使用运行脚本，效果相同：
@@ -104,12 +103,7 @@ run.bat         Windows cmd
 | `--num-hashes` | `100` | MinHash signature 的长度 |
 | `--threshold` | `0.3` | 判断文档相似的 Jaccard 阈值 s |
 | `--body-only` | 关闭 | 只使用正文，不使用 Subject |
-| `--lsh` | 关闭 | 运行可选的 LSH 阶段 |
-| `--lsh-bands` | 自动选择 | LSH 的 band 数量 |
-| `--lsh-rows` | 自动选择 | 每个 band 的行数，必须和 `--lsh-bands` 一起提供 |
 | `--output-dir` | `results` | 保存 CSV 结果的目录 |
-
-`--lsh-bands` 和 `--lsh-rows` 不提供时，程序根据阈值和 signature 长度自动选择。规则是在 `bands * rows = signature 长度` 的组合里，选 rows 最大、并且相似度恰好等于阈值的文档对仍有至少 95% 的概率成为候选对的那一组。signature 长度为 100 时，阈值 0.3 得到 50 bands × 2 rows，阈值 0.8 得到 20 bands × 5 rows。
 
 结果会保存到：
 
@@ -123,7 +117,7 @@ TW1/results/top_pairs.csv
 只运行两个主题的算法演示：
 
 ~~~~sh
-python main.py --categories comp.graphics comp.os.ms-windows.misc --sizes 10 --lsh
+python main.py --categories comp.graphics comp.os.ms-windows.misc --sizes 10
 ~~~~
 
 只使用正文：
@@ -135,13 +129,7 @@ python main.py --body-only --sizes 10 100
 改变参数：
 
 ~~~~sh
-python main.py --k 10 --num-hashes 200 --threshold 0.4 --sizes 10 100 1000 --lsh
-~~~~
-
-手动指定 LSH 的 bands 和 rows：
-
-~~~~sh
-python main.py --sizes 1000 --lsh --lsh-bands 20 --lsh-rows 5
+python main.py --k 10 --num-hashes 200 --threshold 0.4 --sizes 10 100 1000
 ~~~~
 
 ## 运行自检
@@ -157,8 +145,6 @@ python -m unittest -v
 - MinHash signature 长度、确定性，以及估计值接近 exact Jaccard
 - signature 相似度的计算
 - Subject 和正文的预处理
-- LSH 候选对、按阈值筛选、bands 和 rows 的自动选择
-- LSH 参数完整性检查
 
 ## 运行 Jupyter Notebook
 
@@ -177,7 +163,6 @@ Notebook 会展示：
 - shingle 哈希值
 - exact Jaccard
 - MinHash estimate 和误差
-- LSH 候选对、筛选结果、precision 和 recall
 - 10、100、1,000 篇文档的运行时间
 - k=5 和 k=10 的参数对比
 - signature length 100 和 200 的参数对比
@@ -190,7 +175,6 @@ Notebook 会展示：
 | CompareSets | similarity.py 的 `CompareSets` |
 | MinHashing | similarity.py 的 `MinHashing` |
 | CompareSignatures | similarity.py 的 `CompareSignatures` |
-| LSH | similarity.py 的 `LSH`，其中 `similar_pairs` 是完整步骤 |
 | 实验入口 | main.py |
 | 报告和图表 | Homework1_Analysis.ipynb |
 
@@ -203,17 +187,9 @@ experiment_summary.csv 每行对应一个文档规模，主要包含：
 | `documents` | 文档数量 |
 | `pairs` | 文档对数量，等于 n(n-1)/2 |
 | `similar_pairs` | exact Jaccard 不低于阈值的文档对数量，是准确基准 |
-| `lsh_bands`、`lsh_rows` | 本次 LSH 使用的参数 |
-| `lsh_candidates` | banding 得到的候选对数量 |
-| `lsh_candidate_recall` | 真实相似对中进入候选对的比例 |
-| `lsh_similar_pairs` | 候选对中 signature 相似度不低于阈值的对数，是 LSH 的最终输出 |
-| `lsh_true_positives` | LSH 最终输出中真实相似的对数 |
-| `lsh_precision`、`lsh_recall` | LSH 最终输出相对准确基准的 precision 和 recall |
 | `shingling_seconds` 等 | 各阶段和总运行时间，单位是秒 |
 
-没有运行 LSH，或者某个比例的分母为 0 时，对应单元格为空。
-
-直接比较全部文档对的数量是 n(n-1)/2，随文档数量平方增长。LSH 只对候选对比较 signature，所以它的时间远小于全部文档对比较。
+直接比较全部文档对的数量是 n(n-1)/2，随文档数量平方增长，文档数量增加时它会成为主要耗时。
 
 ## 作业提交注意事项
 

@@ -10,8 +10,8 @@
 
 ## 2. 工作目录和数据位置
 
-- 数据集目标位置：`C:\Users\goahe\Desktop\ID2222\Coding\T10I4D100K.dat`
-- 项目目录：`C:\Users\goahe\Desktop\ID2222\Coding\TW2`
+- 数据集目标位置：`TW2` 上一级目录中的 `T10I4D100K.dat`
+- 项目目录：`TW2`
 - 数据集不能放入最终提交 zip。报告中需要保留下载链接和获取说明。
 
 ## 3. 最小可行技术方案
@@ -46,11 +46,10 @@
 
 从上一级频繁项集生成下一层候选项集：
 
-1. 两两合并上一级 itemset。
-2. 只保留大小为 `k` 的合并结果。
+1. 把上一级的每个 itemset 写成有序元组。
+2. 合并前 `k-2` 个项目相同、只有最后一个项目不同的两个 itemset，得到大小为 `k` 的候选集。
 3. 检查候选集的每一个大小为 `k-1` 的子集是否都属于上一级频繁项集。
 4. 如果有一个子集不频繁，就删除这个候选集。
-5. 对候选集排序后再参与计数，保持结果稳定。
 
 这一步使用 A-Priori 的核心性质。一个 itemset 如果频繁，那么它的所有子集也必须频繁。
 
@@ -59,8 +58,8 @@
 对每一层候选项集：
 
 1. 扫描所有交易。
-2. 判断候选 itemset 是否是交易的子集。
-3. 如果是，就把该候选的计数加一。
+2. 把每条交易缩减到出现在候选集中的项目，剩下的项目少于 `k` 个时跳过。
+3. 枚举缩减后交易中大小为 `k` 的组合，在候选集的哈希表中查找并计数。组合数比候选数多时，改为逐个判断候选是否是交易的子集。
 4. 扫描结束后保留支持度不低于 `min_support` 的候选。
 5. 将这一层频繁项集保存起来，供下一轮生成候选集。
 
@@ -104,22 +103,24 @@ python apriori.py --dataset <数据集路径> --support <整数> --confidence <0
 ```text
 TW2/
 ├── apriori.py
-├── apriori_notebook.ipynb
+├── Homework2_Analysis.ipynb
+├── test_apriori.py
 ├── README.md
 ├── run.bat
+├── run.sh
 ├── results/
 │   ├── frequent_itemsets.csv
 │   ├── association_rules.csv
 │   └── run_summary.json
-└── report.pdf
+└── report.pdf（可选，Notebook 已包含报告内容）
 ```
 
 说明：
 
 - `apriori.py` 放算法、命令行入口和必要注释。
-- `apriori_notebook.ipynb` 用于教学式展示、测试和实验。
+- `Homework2_Analysis.ipynb` 用于教学式展示、测试和实验。
 - `README.md` 写清楚环境要求和运行步骤。
-- `run.bat` 让 Windows 用户可以双击或在终端运行。
+- `run.bat` 让 Windows 用户可以双击或在终端运行，`run.sh` 用于 macOS 和 Linux。
 - `results` 保存实验输出和运行时间。
 - `report.pdf` 可以由 Notebook 导出，或者在后续阶段单独整理。
 - 不把 `T10I4D100K.dat` 放到这个项目的最终提交压缩包中。
@@ -174,7 +175,7 @@ Notebook 需要避免只展示最终数字。每个关键步骤都应配一小�
 
 ## 9. 性能检查
 
-基础实现使用集合的子集判断，代码易读，适合本作业的教学目标。A-Priori 的候选剪枝会减少不必要的计数。
+A-Priori 的候选剪枝会减少不必要的计数。计数时先把交易缩减到候选集中出现的项目，再用哈希表查找组合。
 
 需要实际测量：
 
@@ -238,7 +239,7 @@ Notebook 需要避免只展示最终数字。每个关键步骤都应配一小�
 
 数据集已经保存并验证：
 
-- 文件：`C:\Users\goahe\Desktop\ID2222\Coding\T10I4D100K.dat`
+- 文件：`TW2` 上一级目录中的 `T10I4D100K.dat`
 - 大小：4,022,055 bytes
 - 交易行数：100,000
 - 文件内容是空格分隔的项目编号，每行代表一条交易。
@@ -253,21 +254,21 @@ Notebook 需要避免只展示最终数字。每个关键步骤都应配一小�
 实现已经完成，当前项目包含：
 
 - `apriori.py`
-- `apriori_notebook.ipynb`
+- `Homework2_Analysis.ipynb`
 - `test_apriori.py`
 - `README.md`
-- `run.bat`
+- `run.bat` 和 `run.sh`
 - `results/`
 
 验证结果如下：
 
 - Python 编译检查通过。
 - 小数据集支持度和关联规则断言通过。
-- 额外随机小数据集与暴力枚举对照通过。
+- 随机小数据集与暴力枚举对照通过，这项检查已经写入 `test_apriori.py`。
 - 完整数据集包含 100,000 条交易。
 - `support=1000` 得到 385 个频繁项集。
 - `confidence=0.6` 得到 5 条关联规则。
-- 完整运行时间约 5 秒。
-- Notebook 已执行，8 个代码单元格全部有输出，0 个错误。
-- Notebook 可以从 `TW2` 或 `Coding` 目录启动，并自动定位项目文件。
+- 初版完整运行时间约 5 秒。优化候选生成和支持度计数后约 1.6 秒，`support=500` 时从约 88 秒降到约 2.7 秒，结果与初版完全一致。
+- Notebook 已执行，全部代码单元格有输出，0 个错误。
+- Notebook 可以从 `TW2` 或它的上一级目录启动，并自动定位项目文件。
 - 重复使用输出目录时，未运行关联规则的命令不会保留旧的规则文件。

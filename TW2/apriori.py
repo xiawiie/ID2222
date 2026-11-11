@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import time
 from itertools import combinations
 from pathlib import Path
@@ -41,6 +42,7 @@ def _validate_support(min_support: int) -> None:
 def _validate_confidence(min_confidence: float) -> None:
     """Check that confidence is a probability in the closed interval [0, 1]."""
 
+    # NaN 和任何数比较都是 False，所以这个写法也会拒绝 NaN。
     if not 0 <= min_confidence <= 1:
         raise ValueError("min_confidence must be between 0 and 1")
 
@@ -71,10 +73,28 @@ def read_transactions(dataset_path: str | Path) -> Transactions:
     return transactions
 
 
+def _item_sort_key(item: Item) -> tuple[int, int, str]:
+    """排序 key：数字编号按数值排序，其他名称按字典序排在后面。
+
+    T10I4D100K 的项目是数字编号。直接按字符串排序会得到 1, 10, 100, 2
+    这样的顺序，按数值排序的输出更容易阅读和核对。
+    """
+
+    if item.isascii() and item.isdigit():
+        return (0, int(item), "")
+    return (1, 0, item)
+
+
 def _sorted_items(itemset: Iterable[Item]) -> tuple[Item, ...]:
     """Return a stable representation for output and candidate generation."""
 
-    return tuple(sorted(itemset))
+    return tuple(sorted(itemset, key=_item_sort_key))
+
+
+def _itemset_sort_key(itemset: Iterable[Item]) -> tuple[tuple[int, int, str], ...]:
+    """排序 key：让同一层的项集按项目编号的数值顺序排列。"""
+
+    return tuple(sorted(_item_sort_key(item) for item in itemset))
 
 
 def format_itemset(itemset: Itemset) -> str:
@@ -100,29 +120,39 @@ def generate_candidates(
 ) -> set[Itemset]:
     """生成下一层候选项集，并使用 A-Priori 性质进行剪枝。
 
-    两个上一层频繁项集先进行合并。如果候选项集的任意一个直接子集不频繁，
-    这个候选项集就不可能频繁，因此可以在真正计数前删除。
+    这是 Agrawal 和 Srikant 论文中的 apriori-gen，分两步：
+
+    1. Join：把上一层的每个频繁项集写成有序元组。两个项集如果前
+       k-2 个项目相同，只有最后一个项目不同，就合并成一个大小为 k 的
+       候选。每个候选只会由唯一的一对项集生成，不需要像两两合并全部
+       项集那样检查并去重。
+    2. Prune：候选项集的任意一个大小为 k-1 的子集不频繁，它就不可能
+       频繁，在真正计数前删除。
     """
 
     previous = set(previous_frequent)
     if itemset_size < 2 or not previous:
         return set()
 
-    previous_list = sorted(previous, key=_sorted_items)
+    # 按前 k-2 个项目分组，组内保存各个项集的最后一个项目。
+    groups: dict[tuple[Item, ...], list[Item]] = {}
+    for itemset in previous:
+        ordered = _sorted_items(itemset)
+        if len(ordered) != itemset_size - 1:
+            raise ValueError("previous_frequent must contain itemsets of size k-1")
+        groups.setdefault(ordered[:-1], []).append(ordered[-1])
+
     candidates: set[Itemset] = set()
-
-    for index, left in enumerate(previous_list):
-        for right in previous_list[index + 1 :]:
-            union = left | right
-            if len(union) != itemset_size:
-                continue
-
+    for prefix, last_items in groups.items():
+        last_items.sort(key=_item_sort_key)
+        for first_last, second_last in combinations(last_items, 2):
+            candidate_items = prefix + (first_last, second_last)
             all_subsets_are_frequent = all(
                 frozenset(subset) in previous
-                for subset in combinations(union, itemset_size - 1)
+                for subset in combinations(candidate_items, itemset_size - 1)
             )
             if all_subsets_are_frequent:
-                candidates.add(union)
+                candidates.add(frozenset(candidate_items))
 
     return candidates
 
@@ -132,26 +162,47 @@ def count_candidate_support(
     candidates: set[Itemset],
     itemset_size: int,
 ) -> dict[Itemset, int]:
-    """通过枚举每个 basket 中的组合来统计候选项集支持度。
+    """扫描一遍交易，统计每个候选项集的支持度。
 
     交易在进入本函数前已经转换为 set，所以一个候选项集在同一条交易中
-    最多计数一次。把生成的组合放入候选集合查找，可以避免对每条交易逐一
-    扫描全部候选项集。
+    最多计数一次。为了减少工作量，这里做了三件事：
+
+    * 先把每条交易缩减到出现在候选项集中的项目。其他项目不可能参与
+      任何候选，剩下的项目少于 k 个时整条交易直接跳过。
+    * 候选项集用有序元组作为字典的 key。缩减后的交易排序后枚举出的
+      组合本身就是有序元组，可以直接查表，不用为每个组合创建 frozenset。
+    * 如果一条交易的组合数比候选数还多，就改为逐个检查候选是否是
+      这条交易的子集。候选很少的高层会走这条路径。
     """
 
-    counts = {candidate: 0 for candidate in candidates}
     if not candidates:
-        return counts
+        return {}
+
+    counts: dict[tuple[Item, ...], int] = {
+        _sorted_items(candidate): 0 for candidate in candidates
+    }
+    candidate_items = frozenset().union(*candidates)
+    # 给每个相关项目一个整数序号，排序交易时比重复计算排序 key 更快。
+    item_rank = {item: rank for rank, item in enumerate(_sorted_items(candidate_items))}
+    candidate_count = len(candidates)
+    candidate_pairs = [(candidate, _sorted_items(candidate)) for candidate in candidates]
 
     for transaction in transactions:
-        if len(transaction) < itemset_size:
+        relevant = transaction & candidate_items
+        if len(relevant) < itemset_size:
             continue
-        for combination_items in combinations(_sorted_items(transaction), itemset_size):
-            candidate = frozenset(combination_items)
-            if candidate in candidates:
-                counts[candidate] += 1
 
-    return counts
+        if math.comb(len(relevant), itemset_size) <= candidate_count:
+            ordered = sorted(relevant, key=item_rank.__getitem__)
+            for combination_items in combinations(ordered, itemset_size):
+                if combination_items in counts:
+                    counts[combination_items] += 1
+        else:
+            for candidate, key in candidate_pairs:
+                if candidate <= relevant:
+                    counts[key] += 1
+
+    return {frozenset(key): count for key, count in counts.items()}
 
 
 def run_apriori(
@@ -181,7 +232,9 @@ def run_apriori(
         for itemset, count in singleton_counts.items()
         if count >= min_support
     }
-    frequent_singletons = dict(sorted(frequent_singletons.items(), key=lambda pair: _sorted_items(pair[0])))
+    frequent_singletons = dict(
+        sorted(frequent_singletons.items(), key=lambda pair: _itemset_sort_key(pair[0]))
+    )
     frequent_by_size[1] = frequent_singletons
     support_counts.update(frequent_singletons)
     level_timings.append(
@@ -204,7 +257,9 @@ def run_apriori(
             for itemset, count in candidate_counts.items()
             if count >= min_support
         }
-        current_frequent = dict(sorted(current_frequent.items(), key=lambda pair: _sorted_items(pair[0])))
+        current_frequent = dict(
+            sorted(current_frequent.items(), key=lambda pair: _itemset_sort_key(pair[0]))
+        )
 
         if current_frequent:
             frequent_by_size[itemset_size] = current_frequent
@@ -277,8 +332,8 @@ def generate_association_rules(
         key=lambda rule: (
             -float(rule["confidence"]),
             -int(rule["support"]),
-            _sorted_items(rule["antecedent"]),
-            _sorted_items(rule["consequent"]),
+            _itemset_sort_key(rule["antecedent"]),
+            _itemset_sort_key(rule["consequent"]),
         )
     )
     return rules
@@ -288,8 +343,14 @@ def write_results(
     output_dir: str | Path,
     result: Mapping[str, object],
     rules: Sequence[Mapping[str, object]] | None = None,
+    min_confidence: float | None = None,
+    rule_seconds: float | None = None,
 ) -> None:
-    """Write human-readable result files for the report and presentation."""
+    """Write human-readable result files for the report and presentation.
+
+    ``min_confidence`` and ``rule_seconds`` are only recorded in the summary
+    so that the saved results state which parameters produced them.
+    """
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -299,7 +360,8 @@ def write_results(
         raise TypeError("result['frequent_itemsets'] must be a dictionary")
 
     with (output_path / "frequent_itemsets.csv").open("w", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
+        # 固定使用 LF 换行，Windows 和 macOS 生成的文件完全一致。
+        writer = csv.writer(file, lineterminator="\n")
         writer.writerow(["itemset_size", "itemset", "support"])
         for itemset_size in sorted(frequent_by_size):
             itemsets = frequent_by_size[itemset_size]
@@ -309,7 +371,7 @@ def write_results(
     association_rules_path = output_path / "association_rules.csv"
     if rules is not None:
         with association_rules_path.open("w", newline="", encoding="utf-8") as file:
-            writer = csv.writer(file)
+            writer = csv.writer(file, lineterminator="\n")
             writer.writerow(["antecedent", "consequent", "support", "confidence"])
             for rule in rules:
                 writer.writerow(
@@ -327,13 +389,16 @@ def write_results(
     summary = {
         "transaction_count": result["transaction_count"],
         "min_support": result["min_support"],
+        "min_confidence": min_confidence,
         "total_seconds": result["total_seconds"],
+        "rule_seconds": rule_seconds,
         "level_timings": result["level_timings"],
         "frequent_itemset_count": sum(len(level) for level in frequent_by_size.values()),
         "association_rule_count": None if rules is None else len(rules),
     }
     with (output_path / "run_summary.json").open("w", encoding="utf-8") as file:
         json.dump(summary, file, indent=2)
+        file.write("\n")
 
 
 def _positive_integer(value: str) -> int:
@@ -395,19 +460,25 @@ def main() -> None:
 
     args = build_parser().parse_args()
     try:
+        read_start = time.perf_counter()
         transactions = read_transactions(args.dataset)
+        read_seconds = time.perf_counter() - read_start
+
         result = run_apriori(transactions, args.support)
 
         rules = None
+        rule_seconds = None
         if args.confidence is not None:
+            rule_start = time.perf_counter()
             rules = generate_association_rules(
                 result["frequent_itemsets"],
                 result["support_counts"],
                 args.support,
                 args.confidence,
             )
+            rule_seconds = time.perf_counter() - rule_start
 
-        write_results(args.output_dir, result, rules)
+        write_results(args.output_dir, result, rules, args.confidence, rule_seconds)
     except (FileNotFoundError, ValueError) as error:
         # User input errors should be understandable without reading a traceback.
         raise SystemExit(f"Error: {error}") from error
@@ -415,13 +486,20 @@ def main() -> None:
     frequent_count = sum(
         len(level) for level in result["frequent_itemsets"].values()
     )
-    print(f"Transactions: {result['transaction_count']}")
+    print(f"Transactions: {result['transaction_count']} (read in {read_seconds:.3f} seconds)")
     print(f"Minimum support: {args.support}")
     print(f"Frequent itemsets: {frequent_count}")
+    for timing in result["level_timings"]:
+        print(
+            f"  size {timing['itemset_size']}: "
+            f"{timing['candidate_count']} candidates, "
+            f"{timing['frequent_count']} frequent, "
+            f"{timing['seconds']:.3f} seconds"
+        )
+    print(f"A-Priori runtime: {result['total_seconds']:.3f} seconds")
     if rules is not None:
         print(f"Minimum confidence: {args.confidence}")
-        print(f"Association rules: {len(rules)}")
-    print(f"Total runtime: {result['total_seconds']:.3f} seconds")
+        print(f"Association rules: {len(rules)} ({rule_seconds:.3f} seconds)")
     print(f"Results written to: {Path(args.output_dir).resolve()}")
 
 

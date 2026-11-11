@@ -1,31 +1,33 @@
 {
   "transaction_count": 100000,
   "min_support": 1000,
-  "total_seconds": 5.014360699919052,
+  "min_confidence": 0.6,
+  "total_seconds": 1.5621919161640108,
+  "rule_seconds": 4.224991425871849e-05,
   "level_timings": [
     {
       "itemset_size": 1,
       "candidate_count": 870,
       "frequent_count": 375,
-      "seconds": 0.2325148000381887
+      "seconds": 0.2300697499886155
     },
     {
       "itemset_size": 2,
       "candidate_count": 70125,
       "frequent_count": 9,
-      "seconds": 2.10391319997143
+      "seconds": 1.3142260843887925
     },
     {
       "itemset_size": 3,
       "candidate_count": 1,
       "frequent_count": 1,
-      "seconds": 2.677903199917637
+      "seconds": 0.017844332847744226
     },
     {
       "itemset_size": 4,
       "candidate_count": 0,
       "frequent_count": 0,
-      "seconds": 1.009996049106121e-05
+      "seconds": 4.425039514899254e-05
     }
   ],
   "frequent_itemset_count": 385,

@@ -8,37 +8,56 @@
 2. 直接 Jaccard similarity
 3. MinHashing
 4. MinHash signature similarity
-5. 可选的 LSH 候选搜索
+5. 可选的 LSH：banding 找候选对，再按阈值筛选
 6. 10、100、1,000 篇文档的规模实验
 
 ## 目录结构
 
 ~~~~text
 TW1/
-├── similarity.py
-├── main.py
-├── Homework1_Analysis.ipynb
-├── test_similarity.py
+├── similarity.py              核心算法
+├── main.py                    命令行实验入口
+├── Homework1_Analysis.ipynb   报告和图表
+├── test_similarity.py         单元测试
 ├── README.md
-├── run.ps1
-└── run.bat
+├── run.sh                     macOS / Linux 运行脚本
+├── run.ps1                    Windows PowerShell 运行脚本
+├── run.bat                    Windows cmd 运行脚本
+└── results/                   实验结果 CSV
 ~~~~
 
-数据集不复制到项目目录，也不要放进最终提交 ZIP。
+数据集不放在 TW1 目录里，也不要放进最终提交 ZIP。
 
 ## 数据集
 
-默认读取：
+使用 UCI Machine Learning Repository 的 Twenty Newsgroups 数据集：
+
+- 数据集页面：<https://archive.ics.uci.edu/dataset/113/twenty+newsgroups>
+- 直接下载：<https://archive.ics.uci.edu/static/public/113/twenty+newsgroups.zip>
+
+下载得到的 ZIP 里有 `mini_newsgroups.tar.gz`。把它解压到 TW1 的上一级目录，得到下面的结构：
 
 ~~~~text
-..\twenty_newsgroups\mini\mini_newsgroups
+ID2222/
+├── TW1/
+└── twenty_newsgroups/
+    └── mini/
+        └── mini_newsgroups/
+            ├── alt.atheism/
+            ├── comp.graphics/
+            └── ...
 ~~~~
 
-当前电脑上的实际路径是：
+macOS / Linux 可以在 TW1 的上一级目录执行：
 
-~~~~text
-C:\Users\goahe\Desktop\ID2222\Coding\twenty_newsgroups\mini\mini_newsgroups
+~~~~sh
+curl -L -o twenty_newsgroups.zip "https://archive.ics.uci.edu/static/public/113/twenty+newsgroups.zip"
+unzip twenty_newsgroups.zip mini_newsgroups.tar.gz
+mkdir -p twenty_newsgroups/mini
+tar -xzf mini_newsgroups.tar.gz -C twenty_newsgroups/mini
 ~~~~
+
+如果数据集放在其他位置，运行时用 `--data-dir` 指定 `mini_newsgroups` 目录。
 
 mini 数据集包含 20 个新闻组，每个新闻组 100 篇文档，共 2,000 篇。
 
@@ -47,38 +66,50 @@ mini 数据集包含 20 个新闻组，每个新闻组 100 篇文档，共 2,000
 ## 环境
 
 - Python 3.10 或更高版本
-- Jupyter Notebook
-- matplotlib，用于 Notebook 绘图
-- 核心算法只使用 Python 标准库
+- 核心算法和命令行程序只使用 Python 标准库，不需要构建步骤
+- Jupyter Notebook 和 matplotlib 只在运行 Notebook 时需要
 
 如果本地还没有 Jupyter 或 matplotlib，可以在已有 Python 环境中安装：
 
-~~~~powershell
+~~~~sh
 python -m pip install notebook matplotlib
 ~~~~
 
 ## 命令行运行
 
-在 PowerShell 中进入项目目录：
-
-~~~~powershell
-cd C:\Users\goahe\Desktop\ID2222\Coding\TW1
-~~~~
+先进入 TW1 目录。下面的命令在 Windows 上使用 `python`，在 macOS / Linux 上通常是 `python3`。
 
 运行完整规模实验：
 
-~~~~powershell
+~~~~sh
 python main.py --sizes 10 100 1000 --lsh
 ~~~~
 
-这个命令默认使用：
+也可以直接使用运行脚本，效果相同：
 
-- 字符 shingle 长度 k=5
-- MinHash signature 长度 100
-- Jaccard 相似度阈值 0.3
-- 20 个 LSH bands
-- 每个 band 5 行
-- 保留 Subject 和正文
+~~~~text
+./run.sh        macOS / Linux
+.\run.ps1       Windows PowerShell
+run.bat         Windows cmd
+~~~~
+
+### 参数和默认值
+
+| 参数 | 默认值 | 含义 |
+|---|---|---|
+| `--data-dir` | `../twenty_newsgroups/mini/mini_newsgroups` | 数据集目录，每个子目录是一个新闻组 |
+| `--categories` | 全部新闻组 | 只读取指定的新闻组 |
+| `--sizes` | `10 100 1000` | 要测试的文档数量，可以给多个 |
+| `--k` | `5` | 字符 shingle 的长度 |
+| `--num-hashes` | `100` | MinHash signature 的长度 |
+| `--threshold` | `0.3` | 判断文档相似的 Jaccard 阈值 s |
+| `--body-only` | 关闭 | 只使用正文，不使用 Subject |
+| `--lsh` | 关闭 | 运行可选的 LSH 阶段 |
+| `--lsh-bands` | 自动选择 | LSH 的 band 数量 |
+| `--lsh-rows` | 自动选择 | 每个 band 的行数，必须和 `--lsh-bands` 一起提供 |
+| `--output-dir` | `results` | 保存 CSV 结果的目录 |
+
+`--lsh-bands` 和 `--lsh-rows` 不提供时，程序根据阈值和 signature 长度自动选择。规则是在 `bands * rows = signature 长度` 的组合里，选 rows 最大、并且相似度恰好等于阈值的文档对仍有至少 95% 的概率成为候选对的那一组。signature 长度为 100 时，阈值 0.3 得到 50 bands × 2 rows，阈值 0.8 得到 20 bands × 5 rows。
 
 结果会保存到：
 
@@ -87,63 +118,66 @@ TW1/results/experiment_summary.csv
 TW1/results/top_pairs.csv
 ~~~~
 
+### 其他示例
+
 只运行两个主题的算法演示：
 
-~~~~powershell
+~~~~sh
 python main.py --categories comp.graphics comp.os.ms-windows.misc --sizes 10 --lsh
 ~~~~
 
 只使用正文：
 
-~~~~powershell
+~~~~sh
 python main.py --body-only --sizes 10 100
 ~~~~
 
 改变参数：
 
-~~~~powershell
+~~~~sh
 python main.py --k 10 --num-hashes 200 --threshold 0.4 --sizes 10 100 1000 --lsh
+~~~~
+
+手动指定 LSH 的 bands 和 rows：
+
+~~~~sh
+python main.py --sizes 1000 --lsh --lsh-bands 20 --lsh-rows 5
 ~~~~
 
 ## 运行自检
 
-~~~~powershell
+~~~~sh
 python -m unittest -v
 ~~~~
 
-自检覆盖：
+自检不需要数据集，覆盖：
 
-- shingle 去重
-- Jaccard 计算
-- MinHash signature 长度
-- 相同 signature 的相似度
+- shingle 去重和有序集合表示
+- Jaccard 计算，包括空集合和不相交集合
+- MinHash signature 长度、确定性，以及估计值接近 exact Jaccard
+- signature 相似度的计算
 - Subject 和正文的预处理
-- LSH 候选对
+- LSH 候选对、按阈值筛选、bands 和 rows 的自动选择
 - LSH 参数完整性检查
 
 ## 运行 Jupyter Notebook
 
 在 TW1 目录运行：
 
-~~~~powershell
+~~~~sh
 jupyter notebook
 ~~~~
 
-然后打开：
-
-~~~~text
-Homework1_Analysis.ipynb
-~~~~
+然后打开 `Homework1_Analysis.ipynb`，按顺序运行所有单元格。在本项目的测试电脑上完整运行约需 1 分钟。
 
 Notebook 会展示：
 
-- 数据集结构
+- 数据集结构和获取方式
 - 一篇文档的预处理结果
 - shingle 哈希值
 - exact Jaccard
-- MinHash estimate
-- MinHash 误差
-- LSH 候选对和召回率
+- MinHash estimate 和误差
+- LSH 候选对、筛选结果、precision 和 recall
 - 10、100、1,000 篇文档的运行时间
 - k=5 和 k=10 的参数对比
 - signature length 100 和 200 的参数对比
@@ -152,37 +186,34 @@ Notebook 会展示：
 
 | 作业概念 | 代码位置 |
 |---|---|
-| Shingling | similarity.py 的 Shingling |
-| CompareSets | similarity.py 的 CompareSets |
-| MinHashing | similarity.py 的 MinHashing |
-| CompareSignatures | similarity.py 的 CompareSignatures |
-| LSH | similarity.py 的 LSH |
+| Shingling | similarity.py 的 `Shingling` |
+| CompareSets | similarity.py 的 `CompareSets` |
+| MinHashing | similarity.py 的 `MinHashing` |
+| CompareSignatures | similarity.py 的 `CompareSignatures` |
+| LSH | similarity.py 的 `LSH`，其中 `similar_pairs` 是完整步骤 |
 | 实验入口 | main.py |
 | 报告和图表 | Homework1_Analysis.ipynb |
 
 ## 结果解释
 
-experiment_summary.csv 主要包含：
+experiment_summary.csv 每行对应一个文档规模，主要包含：
 
-- documents
-- pairs
-- similar_pairs
-- lsh_candidates
-- lsh_true_positives
-- lsh_recall
-- shingling_seconds
-- minhash_seconds
-- pair_comparison_seconds
-- lsh_seconds
-- total_seconds
+| 列 | 含义 |
+|---|---|
+| `documents` | 文档数量 |
+| `pairs` | 文档对数量，等于 n(n-1)/2 |
+| `similar_pairs` | exact Jaccard 不低于阈值的文档对数量，是准确基准 |
+| `lsh_bands`、`lsh_rows` | 本次 LSH 使用的参数 |
+| `lsh_candidates` | banding 得到的候选对数量 |
+| `lsh_candidate_recall` | 真实相似对中进入候选对的比例 |
+| `lsh_similar_pairs` | 候选对中 signature 相似度不低于阈值的对数，是 LSH 的最终输出 |
+| `lsh_true_positives` | LSH 最终输出中真实相似的对数 |
+| `lsh_precision`、`lsh_recall` | LSH 最终输出相对准确基准的 precision 和 recall |
+| `shingling_seconds` 等 | 各阶段和总运行时间，单位是秒 |
 
-直接比较的文档对数量为：
+没有运行 LSH，或者某个比例的分母为 0 时，对应单元格为空。
 
-~~~~text
-n * (n - 1) / 2
-~~~~
-
-因此文档数量增加时，pair comparison 通常会成为主要耗时。
+直接比较全部文档对的数量是 n(n-1)/2，随文档数量平方增长。LSH 只对候选对比较 signature，所以它的时间远小于全部文档对比较。
 
 ## 作业提交注意事项
 
@@ -191,15 +222,14 @@ n * (n - 1) / 2
 - 源代码
 - 运行脚本
 - README
-- Jupyter Notebook
+- Jupyter Notebook，其中包含报告内容和 AI Disclosure statement
 - 测试代码
-- Notebook 生成的实验结果或图表
-- AI Disclosure statement
+- results 目录中的实验结果
 
 不要包含：
 
 - twenty_newsgroups 数据集
 - twenty_newsgroups.zip
-- __pycache__
+- `__pycache__`
 
-如果 Notebook 已经包含完整报告内容，可以按照作业说明不再单独提交 PDF。
+Notebook 已经包含完整报告内容，可以按照作业说明不再单独提交 PDF。

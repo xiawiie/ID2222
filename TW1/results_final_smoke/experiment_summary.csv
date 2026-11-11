@@ -1,0 +1,2 @@
+documents,pairs,similar_pairs,lsh_candidates,lsh_true_positives,lsh_recall,shingling_seconds,minhash_seconds,pair_comparison_seconds,lsh_seconds,total_seconds,requested_documents
+10,45,0,0,0,0.0,0.039815599913708866,0.4092004999984056,0.010786500060930848,9.890005458146334e-05,0.4599119999911636,10

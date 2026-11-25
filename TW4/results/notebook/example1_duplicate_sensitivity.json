@@ -1,0 +1,15 @@
+{
+  "construction": "sum duplicate directed records as MATLAB sparse does",
+  "undirected_weight_sum": 1098.0,
+  "k": 4,
+  "selected_eigengap": 0.19419478023231496,
+  "cluster_sizes": [
+    35,
+    41,
+    48,
+    117
+  ],
+  "normalized_cut": 0.0,
+  "modularity": 0.6700392500356668,
+  "cross_edges": 0
+}

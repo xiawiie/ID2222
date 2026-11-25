@@ -1,0 +1,6 @@
+{
+  "python": "3.12.16 | packaged by conda-forge | (main, Oct 26 2026, 11:29:01) [MSC v.1944 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "timing": "perf_counter; streaming loop only; excludes loading, shuffling, exact baseline and output",
+  "memory": "global-only estimator O(M); offline preprocessing and baseline O(E+V)"
+}

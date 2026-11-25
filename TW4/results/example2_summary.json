@@ -1,0 +1,40 @@
+{
+  "graph": "example2.dat",
+  "sha256": "26e8c305c11fe6367a28322ae2277d90bc5c1d2a2b714ea3083e8251fddcf63c",
+  "input_rows": 2418,
+  "duplicate_directed_rows": 0,
+  "self_loops_removed": 0,
+  "asymmetric_pairs": 0,
+  "nodes": 100,
+  "undirected_edges": 1209,
+  "components": 1,
+  "component_sizes": [
+    100
+  ],
+  "isolates": 0,
+  "selected_k": 2,
+  "selected_eigengap": 0.5450885661483917,
+  "k_search_max": 10,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "n_init": 20,
+  "selected_metrics": {
+    "cluster_sizes": [
+      45,
+      55
+    ],
+    "normalized_cut": 0.1883248958380001,
+    "modularity": 0.40283447619555846,
+    "cross_edges": 113
+  },
+  "ari_to_connected_components": 0.0,
+  "load_seconds": 0.008898700005374849,
+  "eigendecomposition_seconds": 0.003447399998549372,
+  "analysis_seconds_excluding_output": 0.7423019999987446,
+  "total_seconds_including_output": 1.1725398999988101
+}

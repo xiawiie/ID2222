@@ -1,0 +1,45 @@
+{
+  "graph": "example1.dat",
+  "sha256": "43e4afe1003cf531e92140d030937bf16e4d4c29b936335d2c5d9a68ce1a4ae2",
+  "input_rows": 2196,
+  "duplicate_directed_rows": 350,
+  "self_loops_removed": 0,
+  "asymmetric_pairs": 0,
+  "nodes": 241,
+  "undirected_edges": 923,
+  "components": 4,
+  "component_sizes": [
+    117,
+    48,
+    41,
+    35
+  ],
+  "isolates": 0,
+  "selected_k": 4,
+  "selected_eigengap": 0.16767728166906068,
+  "k_search_max": 10,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "n_init": 20,
+  "selected_metrics": {
+    "cluster_sizes": [
+      35,
+      41,
+      48,
+      117
+    ],
+    "normalized_cut": 0.0,
+    "modularity": 0.6628838788208877,
+    "cross_edges": 0
+  },
+  "ari_to_connected_components": 1.0,
+  "load_seconds": 0.012228800012962893,
+  "eigendecomposition_seconds": 0.03213779997895472,
+  "analysis_seconds_excluding_output": 0.847366800007876,
+  "total_seconds_including_output": 1.4740047999948729
+}
